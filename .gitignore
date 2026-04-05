@@ -1,0 +1,11 @@
+# Môi trường ảo (Virtual Environments)
+venv_tf/
+
+# Các file tạm của Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Các file cấu hình của IDE
+.vscode/
+.idea/
