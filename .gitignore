@@ -9,3 +9,6 @@ __pycache__/
 # Các file cấu hình của IDE
 .vscode/
 .idea/
+
+# các file .pkl
+*.pkl
