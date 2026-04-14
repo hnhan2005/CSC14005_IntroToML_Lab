@@ -1,199 +1,161 @@
-# Hệ Thống Gợi Ý Địa Điểm Du Lịch Việt Nam
-**Mô hình: Random Forest Recommendation System**
+# Lab 01: Vietnam Travel Planner
+**Models**:
+- Traditional: Random Forest
+- Hybrid: Content-based Filtering + XGBoost
+- Deep learning: TextCNN
+
+---
+## Group information
+
+**Course:** CSC14005 - Introduction to Machine Learninng
+**Group 3 - Class 23KHDL1**
+
+1. **23127102 - Lê Quang Phúc**
+   - Contributions: Problem definitionm, data collection, modeling for Traditional paradigm, README.md
+
+2. **23127212 - Nguyễn Quang Đăng Khoa**
+   - Contributions: Problem definition, data collection, modeling for Deep Learning paradigm, application
+
+3. **23127241 - Đoàn Thành Phát**
+   - Contributions: Problem definition, data exploration, modeling for Hybrid paradigm, application
+
+4. **23127332 - Trần Tiến Cường**
+   - Contributions: Problem definition, data exploration, modeling for Hybrid paradigm, report
+
+5. **23127442 - Trầm Hữu Nhân**
+   - Contributions: Problem definition, data collection, modeling for Deep Learning paradigm, report
 
 ---
 
-## Tổng Quan
+## Overview
 
-Dự án này xây dựng một **hệ thống gợi ý địa điểm du lịch** dựa trên **Random Forest Classifier**, giúp dự đoán và gợi ý các địa điểm du lịch phù hợp nhất (nhà hàng, khách sạn, điểm tham quan) dựa trên các bình luận và thông tin từ người dùng. Hệ thống ra quyết định từ 200 cây quyết định (decision trees) và sử dụng **TF-IDF vectorization** để tiếp nhận và phân tích văn bản bình luận.
+The problem is to build a **recommendation system** that suggests lists of places, applying **multi-class text classification** based on **machine learning** models, and then performing post-processing and inference to generate a suggested list. This helps to create a suggested travel list based on the user's input description.
 
-**Đầu ra chính:**
-- Top 3 Nhà Hàng (Dining)
-- Top 2 Khách Sạn (Hotel)  
-- Top 1 Điểm Tham Quan (Attraction)
-
----
-
-## Bài Toán
-
-Bài toán được phát biểu dưới dạng **phân loại đa lớp (Multi-class Classification)**:
-
-**Input:** Bình luận/mô tả từ người dùng + một số thông tin đặc trưng (điểm đánh giá, giá cả, v.v.)  
-**Output:** Dự đoán địa điểm (lớp) phù hợp nhất + xác suất dự đoán
+**Output:** Recommendation list: 
+- Top 3 Attraction
+- Top 2 Dining  
+- Top 1 Hotel
 
 ---
 
-## Dữ Liệu
+## Machine learning problem
+The problem is stated in terms of **multi-class classification**:
 
-### Nguồn Dữ Liệu
-Dữ liệu được thu thập từ các nền tảng du lịch phổ biến:
-- **Google Maps** - Địa điểm, đánh giá, bình luận
-- **Booking.com** - Khách sạn, giá cả, nhận xét
-- **Foody.vn** - Nhà hàng, điểm đánh giá, bình luận
-
-Tập trung vào **Thành Phố Hồ Chí Minh** với các danh mục:
-- **Hotel** - Khách sạn lưu trú
-- **Dining** - Nhà hàng, quán ăn  
-- **Attraction** - Điểm tham quan du lịch
-
-### Đặc Trưng (Features)
-
-| Cột | Mô Tả | Kiểu Dữ Liệu |
-|-----|-------|------------|
-| **Name** | Tên địa điểm | String |
-| **Address** | Địa chỉ | String |
-| **Category** | Loại địa điểm (Hotel/Dining/Attraction) | Categorical |
-| **Score** | Điểm đánh giá (0-5 sao) | Float |
-| **Nums_comments** | Số lượng bình luận | Integer |
-| **Price_min, Price_max** | Khoảng giá (VNĐ) | Integer |
-| **Comments** | Danh sách bình luận | List[String] |
-
-
-### Kích Thước Dữ Liệu
-- ~6,000+ địa điểm ban đầu
-- ~130,000+ bình luận sau khi phân tách (explode)
-- 3 danh mục chính: Attraction, Hotel, Dining
+**Input:** User comments/descriptions + some characteristic information (ratings, price, etc.) **Output:** Prediction of the most suitable location (class) + prediction probability
 
 ---
 
-## Pipeline - Quy Trình Xử Lý
+## Data source and description
 
-### **Bước 1: Tiền Xử Lý Dữ Liệu**
+### Source
+Data was collected from popular travel platforms:
+- **Google Maps** - Locations, reviews, comments
+- **Booking.com** - Hotels, prices, reviews
+- **Foody.vn** - Restaurants, ratings, comments
+Focus on **Ho Chi Minh City** with the following categories:
+- **Hotel** - Accommodation
+- **Dining** - Restaurants and eateries
+- **Attraction** - Tourist attractions
 
-**1.1 Tổng Hợp Dữ Liệu**
-- Thu thập các CSV từ nhiều nguồn
-- Gộp thành một tập dữ liệu thống nhất (`data.csv`)
+### Features description
+| Columns | Data type | Description |
+|-----|------|-------|
+| name | str | location name |
+| address | str | location address |
+| star | float | rating score (0-5) |
+| nums_comments | int | total of comments |
+| price | int | ticker price |
+| category | str | category |
+| hours | str | operation hours |
+| comments | list str | list of comments |
+| comment_scores | list float | list of comment scores |
+| url | str | path |
 
-**1.2 Chuẩn Hóa & Làm Sạch**
-- **Tên & Địa chỉ:** Loại bỏ ký tự đặc biệt, chuẩn hóa Unicode (NFC)
-- **Điểm (Score):** Chuyển thành float, thay thế giá trị lỗi bằng 0
-- **Giá (Price):** Tách thành `Price_min` và `Price_max`
-- **Giờ (Hours):** Tách thành `Start` và `End` 
-- **Bình luận:** Chuẩn hóa định dạng, loại bỏ ký tự xuống dòng
-- **Category:** Viết hoa, loại bỏ khoảng trắng
 
-**1.3 Phi Bình Luận (Explode Comments)**
-- Mỗi bình luận trở thành một dòng riêng biệt
-- Tạo bình luận tổng hợp cho địa điểm thiếu dữ liệu
-
-### **Bước 2: Chia Dữ Liệu & Label Encoding**
-
-**2.1 Custom Train/Valid/Test Split**
-- **Nếu ≥ 6 bình luận:** Chia 70% Train (A) / 15% Valid (B)/ 15% Test (C)
-- **Nếu < 6 bình luận:** 100% Train (để không làm mẫu quá nhỏ)
-- **3-Phase Training Strategy:**
-  - Giai đoạn 1: Train trên A, đánh giá trên B
-  - Giai đoạn 2: Train trên A+B, đánh giá trên C
-  - Giai đoạn 3: Train trên A+B+C (mô hình cuối)
-  Bộ siêu tham số được chọn để huấn luyện đã được chọn lọc qua nhiều lần thử nghiệm.
-
-**2.2 Mã Hóa Nhãn (Label Encoding)**
-- Chuyển tên địa điểm thành số nguyên (0, 1, 2, ...)
-- Lưu mapping để sử dụng lại
-
-### **Bước 3: Trích Xuất Đặc Trưng (Feature Engineering)**
-
-**3.1 Đặc Trưng Văn Bản - TF-IDF**
-- **Tiền xử lý văn bản:** Chuyển thành chữ thường, loại bỏ ký tự đặc biệt
-- **Vectorization:** Sử dụng TF-IDF với:
-  - **Max features:** 5000 từ/cụm từ quan trọng nhất
-  - **ngram_range=(1,2):** Bắt từ đơn và cụm 2 từ
-  - **min_df=2:** Loại bỏ từ xuất hiện quá ít
-  - **max_df=0.95:** Loại bỏ từ xuất hiện quá phổ biến
-
-**3.2 Đặc Trưng Số - Normalization**
-- **4 đặc trưng số học:** Score, Nums_comments, Price_min, Price_max
-- **Chuẩn hóa:** StandardScaler để đưa về cùng tỷ lệ
-
-**3.3 Kết Hợp Đặc Trưng (Feature Stacking)**
-- Gộp TF-IDF (5000 chiều) + số học (4 chiều) = **5004 đặc trưng tổng**
-- Sử dụng sparse matrix để tiết kiệm bộ nhớ
-
-### **Bước 4: Huấn Luyện Mô Hình**
-
-Xem mục **Mô Hình** dưới đây.
-
-### **Bước 5: Đánh Giá & Inference**
-
-**5.1 Metrics Đánh Giá**
-- **Accuracy:** Tỷ lệ dự đoán đúng
-- **Macro F1:** F1 trung bình cho tất cả lớp
-- **Top-5 Accuracy:** Xác suất địa điểm đúng nằm trong Top 5 dự đoán
-
-**5.2 Inference (Dự Đoán)**
-- Tiếp nhận query từ người dùng
-- Vectorize & dự đoán xác suất cho từng loại địa điểm
-- Lọc theo danh mục (**lấy riêng Top 3 Dining, Top 2 Hotel, Top 1 Attraction**)
-- Trả về địa điểm với xác suất cao nhất
+### Data info
+- Approximately 6,000+ orginal locations
+- Approximately 130,000+ reviews after exploding
+- 3 main categories: Attraction, Hotel, Dining
 
 ---
 
-## Mô Hình
+## Pipeline
+- Preprocessing and features engineering
+- Data splitting
+- Model training
+- Model evaluation and final retraining
+- Post processing and system inference
 
-### Kiến Trúc Random Forest
+## File Structure Explanation
+
+The project is organized into multiple Jupyter notebooks, each serving a specific purpose:
 
 ```
-Input Data (5004 features)
-    ↓ (distributed to 200 trees)
-┌─────────────────────────────────┐
-│   200 Decision Trees (Parallel) │
-├─────────────────────────────────┤
-│  Tree 1 │ Tree 2 │ ... Tree 200 │
-└─────────────────────────────────┘
-    ↓ (voting/averaging)
-Majority Vote (Classification)
-    ↓
-Probability Distribution
-    ↓
-Top-K Recommendations
+CSC14005_INTROTOML_LAB/
+│
+├── checkpoints/
+│   ├── *. pkl                           # Model checkpoints
+│
+├── data/
+│   ├── *. csv                           # Data files
+│
+├── notebooks/
+│   ├── collection_data.ipynb            # Dataset collection and evaluation
+│   ├── exploration_dât.ipynb            # EDA and preprocessing
+│   ├── deep_learning.ipynb              # Deep learning paradigm - TextCNN
+│   ├── hybrid.ipynb                     # Hybrid paradigm - CBF + XGBoost
+│   └── traditional.ipynb                # Traditional paradigm - Random Forest
+│
+├── .gitignore                           # Git ignore rules
+├── requirements.txt                     # Python dependencies
+├── README.md                            # Project documentation
+└── link.txt                             # Relevant links 
+
 ```
 
-### Tham Số Mô Hình
+## How to Run Instructions
 
-```python
-RandomForestClassifier(
-    n_estimators=200,          # 200 cây quyết định
-    max_depth=14,              # Độ sâu tối đa, kiểm soát overfitting
-    min_samples_split=30,      # Số min để split node
-    min_samples_leaf=5,        # Số min ở lá của cây
-    oob_score=True,            # Đánh giá tự động bằng Out-Of-Bag samples
-    n_jobs=-1,                 # Dùng tất cả CPU cores
-    random_state=42            # Tái tạo được kết quả
-)
+### Prerequisites
+- Python 3.11.9
+- RAM: 8GB or higher
+- Disk space: ~6GB for dependencies and data
+
+### Installation steps
+
+1. **Clone the repository:**
+
+```bash
+git clone <https://github.com/hnhan2005/CSC14005_IntroToML_Lab.git>
+cd CSC14005_INTROTOML_LAB
 ```
 
-### Lý Do Chọn Random Forest
+2. **Create virtual environment (recommended):**
 
-1. **Xử lý dữ liệu hỗn hợp:** Văn bản + số học hiệu quả
-2. **Giải thích được (Interpretable):** Cung cấp feature importance
-3. **Nhanh:** Training & inference nhanh, không cần GPU
-4. **Robust:** Xử lý dữ liệu không cân bằng tốt
-5. **OOB Evaluation:** Tự động đánh giá mô hình
-6. **Dễ deploy:** Đơn giản, dễ maintain, dễ debug
+```bash
+# Windows
+python -m venv venv
+venv\Scripts\activate
 
-
-### 3. Dự Đoán Cho Query Mới
-
-```python
-# Query từ người dùng
-user_query = "Tôi muốn ăn cơm tấm ngon, giá rẻ, tại quận 1"
-
-# Load model đã train
-model = joblib.load('models/rf_model.pkl')
-vectorizer = joblib.load('models/tfidf_vectorizer.pkl')
-
-# Vectorize query
-query_vec = vectorizer.transform([user_query])
-
-# Dự đoán xác suất
-proba = model.predict_proba(query_vec)
-
-# Lấy Top-3 gợi ý
-top_3_indices = proba.argsort()[0][-3:][::-1]
-
-# Trả về tên địa điểm
-places = label_encoder.inverse_transform(top_3_indices)
-print("Gợi ý địa điểm:", places)
+# Linux/Mac
+python3 -m venv venv
+source venv/bin/activate
 ```
 
+3. **Install dependencies:**
+
+```bash
+pip install -r requirements.txt
+```
+
+4. **Download pretrained embedding:**
+- FastTest pretrained embedding: [cc.vi.300.bin](https://fasttext.cc/docs/en/crawl-vectors.html)
+
+## Relevant links
+- Application repo: https://github.com/tphat2205/HCM-Trip-Planner
+- Application link: https://hcm-trip-planner.vercel.app/
+- Machine learning checkpoints: https://drive.google.com/drive/folders/1l0caQ4srtrgOgc4sOkse8I7Zb2pMDFny?usp=sharing
+
+## References
+- Original TextCNN: [Yoon Kim, 2014](https://arxiv.org/abs/1408.5882)
+- FastTest pretrained embedding: [cc.vi.300.bin](https://fasttext.cc/docs/en/crawl-vectors.html)
 
