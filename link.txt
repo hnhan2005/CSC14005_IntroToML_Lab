@@ -3,3 +3,5 @@
 - Application link: https://hcm-trip-planner.vercel.app/
 
 - ML checkpoints: https://drive.google.com/drive/folders/1l0caQ4srtrgOgc4sOkse8I7Zb2pMDFny?usp=sharing
+
+- Video demo: https://drive.google.com/drive/folders/1l0caQ4srtrgOgc4sOkse8I7Zb2pMDFny?usp=sharing
